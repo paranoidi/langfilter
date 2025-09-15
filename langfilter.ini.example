@@ -1,0 +1,25 @@
+# Example langfilter configuration file
+# Place this file in one of the following locations:
+#   - ./langfilter.ini (current directory)
+#   - ./.langfilter.ini (current directory, hidden)
+#   - ~/.config/langfilter/config.ini (user config directory)
+#   - ~/.langfilter.ini (user home directory)
+
+[DEFAULT]
+# Remove tracks with specific language codes (comma-separated)
+# Common language codes: rus, ukr, eng, jpn, fra, deu, spa, etc.
+remove=rus,ukr
+
+# Keep only tracks with specific language codes (comma-separated)
+# Note: If both 'keep' and 'remove' are specified, both rules apply
+# keep=eng,unknown
+
+# Examples:
+# Remove all Russian and Ukrainian tracks:
+# remove=rus,ukr
+
+# Keep only English and unknown language tracks:
+# keep=eng,unknown
+
+# Remove Russian but keep everything else:
+# remove=rus
