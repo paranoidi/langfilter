@@ -64,12 +64,12 @@ def remove_unwanted_tracks(
 
 def create_backup(input_file: Path) -> Path:
     """Create a backup of the original file."""
-    backup_file = input_file.parent / f"{input_file.stem}.backup{input_file.suffix}"
+    backup_file = input_file.parent / f"_original_{input_file.name}"
 
     # If backup already exists, add a number
     counter = 1
     while backup_file.exists():
-        backup_file = input_file.parent / f"{input_file.stem}.backup.{counter}{input_file.suffix}"
+        backup_file = input_file.parent / f"_original_{counter}_{input_file.name}"
         counter += 1
 
     # Use hardlink if possible (faster), otherwise copy

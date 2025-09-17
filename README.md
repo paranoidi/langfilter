@@ -12,7 +12,7 @@ LangFilter helps you clean up MKV video files by removing audio tracks in unwant
 - **Non-interactive mode**: Apply predefined rules from configuration files
 - **Batch processing**: Process multiple MKV files at once
 - **Flexible configuration**: Remove specific languages or keep only desired ones
-- **Safe operations**: Creates backups by default when replacing files
+- **Safe operations**: Replaces original files with filtered versions, creates backups with `_original` prefix
 - **Track analysis**: Uses `mkvinfo` to analyze audio tracks before processing
 
 ## Installation
@@ -66,9 +66,14 @@ langfilter movie.mkv
 langfilter --non-interactive *.mkv
 ```
 
-### Replace Original Files (with backup)
+### Process Files (replaces originals with backup)
 ```bash
-langfilter --replace movie.mkv
+langfilter movie.mkv
+```
+
+### Process Without Creating Backup
+```bash
+langfilter --no-backup movie.mkv
 ```
 
 ## Configuration
@@ -97,8 +102,7 @@ langfilter [OPTIONS] FILES...
 Options:
   -o, --output PATH       Output file path (single file only)
   -n, --non-interactive   Non-interactive mode using config rules
-  --replace              Replace original file (creates backup)
-  --no-backup            Don't create backup when using --replace
+  --no-backup            Don't create backup (default: creates backup with _original prefix)
   -c, --config PATH      Path to configuration file
   --version              Show version
 ```

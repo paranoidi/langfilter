@@ -181,15 +181,9 @@ def main() -> int:
     )
 
     parser.add_argument(
-        "--replace",
-        action="store_true",
-        help="Replace the original file (creates backup)",
-    )
-
-    parser.add_argument(
         "--no-backup",
         action="store_true",
-        help="Don't create backup when using --replace",
+        help="Don't create backup when replacing original file (default: create backup)",
     )
 
     parser.add_argument(
@@ -323,7 +317,7 @@ def main() -> int:
                 filename,
                 selected_tracks,
                 args.output if len(valid_files) == 1 else None,
-                args.replace,
+                True,  # Always replace original file (new default behavior)
                 not args.no_backup,
             )
 
