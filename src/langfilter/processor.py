@@ -32,9 +32,6 @@ def remove_unwanted_tracks(
     tracks_arg = "0," + ",".join(audio_track_ids)
     cmd.extend(["--audio-tracks", tracks_arg])
 
-    # Copy all subtitle tracks (if any)
-    cmd.extend(["--subtitle-tracks", "all"])
-
     # Input file
     cmd.append(str(input_file))
 
