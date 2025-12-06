@@ -5,13 +5,22 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from langfilter.parser import AudioTrack
+from langfilter.parser import AudioTrack, SubtitleTrack
 
 
 def remove_unwanted_tracks(
-    input_file: Path, tracks_to_keep: list[AudioTrack], output_file: Path | None = None
+    input_file: Path,
+    tracks_to_keep: list[AudioTrack],
+    output_file: Path | None = None,
+    subtitle_tracks_to_keep: list[SubtitleTrack] | None = None,
+    default_audio_track_id: int | None = None,
+    default_subtitle_track_id: int | None = None,
 ) -> Path:
-    """Remove unwanted audio tracks from MKV file using mkvmerge."""
+    """
+    Remove unwanted audio and subtitle tracks from MKV file using mkvmerge.
+
+    Also sets default tracks if specified.
+    """
     if output_file is None:
         # Create output filename with suffix
         stem = input_file.stem
@@ -19,7 +28,7 @@ def remove_unwanted_tracks(
         output_file = input_file.parent / f"{stem}_filtered{suffix}"
 
     if not tracks_to_keep:
-        raise ValueError("No tracks selected to keep")
+        raise ValueError("No audio tracks selected to keep")
 
     # Build mkvmerge command
     cmd = ["mkvmerge", "-o", str(output_file)]
@@ -31,6 +40,20 @@ def remove_unwanted_tracks(
     # Include video track (track 0) and selected audio tracks
     tracks_arg = "0," + ",".join(audio_track_ids)
     cmd.extend(["--audio-tracks", tracks_arg])
+
+    # Add subtitle track selection if provided
+    if subtitle_tracks_to_keep:
+        subtitle_track_ids = [str(track.mkvmerge_id) for track in subtitle_tracks_to_keep]
+        subtitle_tracks_arg = "0," + ",".join(subtitle_track_ids)
+        cmd.extend(["--subtitle-tracks", subtitle_tracks_arg])
+
+    # Set default audio track
+    if default_audio_track_id is not None:
+        cmd.extend(["--default-track", f"{default_audio_track_id}:1"])
+
+    # Set default subtitle track
+    if default_subtitle_track_id is not None:
+        cmd.extend(["--default-track", f"{default_subtitle_track_id}:1"])
 
     # Input file
     cmd.append(str(input_file))

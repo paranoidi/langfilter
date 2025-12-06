@@ -13,10 +13,13 @@ from langfilter.config import LangFilterConfig, find_config_file
 from langfilter.interactive import (
     RESET,
     YELLOW,
+    UserCancelledError,
+    select_subtitle_tracks_non_interactive,
+    select_subtitle_tracks_to_keep,
     select_tracks_non_interactive,
     select_tracks_to_keep,
 )
-from langfilter.parser import AudioTrack, get_audio_tracks
+from langfilter.parser import AudioTrack, SubtitleTrack, get_audio_tracks, get_subtitle_tracks
 from langfilter.processor import remove_unwanted_tracks, replace_original
 
 
@@ -37,22 +40,38 @@ class FileAnalysisResult:
     status: TrackSelectionResult
     all_tracks: list[AudioTrack] | None = None
     selected_tracks: list[AudioTrack] | None = None
+    all_subtitle_tracks: list[SubtitleTrack] | None = None
+    selected_subtitle_tracks: list[SubtitleTrack] | None = None
+    default_audio_track: AudioTrack | None = None
+    default_subtitle_track: SubtitleTrack | None = None
     error_message: str | None = None
 
     @property
     def should_process(self) -> bool:
         """Whether this file should be processed (has tracks to filter)."""
-        return self.status == TrackSelectionResult.SUCCESS and self.selected_tracks is not None
+        has_audio_to_process = (
+            self.status == TrackSelectionResult.SUCCESS and self.selected_tracks is not None
+        )
+        has_subtitle_to_process = (
+            self.selected_subtitle_tracks is not None and len(self.selected_subtitle_tracks) > 0
+        )
+        return has_audio_to_process or has_subtitle_to_process
 
     @property
     def needs_filtering(self) -> bool:
         """Whether this file needs filtering (not all tracks selected)."""
-        return (
+        audio_needs_filtering = (
             self.should_process
             and self.all_tracks is not None
             and self.selected_tracks is not None
             and len(self.selected_tracks) < len(self.all_tracks)
         )
+        subtitle_needs_filtering = (
+            self.all_subtitle_tracks is not None
+            and self.selected_subtitle_tracks is not None
+            and len(self.selected_subtitle_tracks) < len(self.all_subtitle_tracks)
+        )
+        return audio_needs_filtering or subtitle_needs_filtering
 
 
 def analyze_and_select_tracks(
@@ -69,53 +88,162 @@ def analyze_and_select_tracks(
     try:
         # Get all audio tracks
         audio_tracks = get_audio_tracks(filename)
+        # Get all subtitle tracks
+        subtitle_tracks = get_subtitle_tracks(filename)
 
-        if not audio_tracks:
-            print("No audio tracks found in the file.")
+        if not audio_tracks and not subtitle_tracks:
+            print("No audio or subtitle tracks found in the file.")
             return FileAnalysisResult(
-                status=TrackSelectionResult.SKIPPED_NO_TRACKS, all_tracks=None, selected_tracks=None
+                status=TrackSelectionResult.SKIPPED_NO_TRACKS,
+                all_tracks=None,
+                selected_tracks=None,
+                all_subtitle_tracks=None,
+                selected_subtitle_tracks=None,
             )
 
-        # Track selection (interactive or non-interactive)
-        if non_interactive:
-            if config is None or not config.has_rules():
-                print(f"{YELLOW}Non-interactive mode requires configuration rules.{RESET}")
-                print("No tracks will be removed. File will be skipped.")
+        # Audio track selection (interactive or non-interactive)
+        selected_audio_tracks: list[AudioTrack] = []
+        default_audio_track: AudioTrack | None = None
+        default_audio_index: int | None = None
+
+        if audio_tracks:
+            if non_interactive:
+                if config is None or not config.has_rules():
+                    print(f"{YELLOW}Non-interactive mode requires configuration rules.{RESET}")
+                    print("No tracks will be removed. File will be skipped.")
+                    return FileAnalysisResult(
+                        status=TrackSelectionResult.SKIPPED_NO_SELECTION,
+                        all_tracks=audio_tracks,
+                        selected_tracks=None,
+                        all_subtitle_tracks=subtitle_tracks,
+                        selected_subtitle_tracks=None,
+                    )
+                selected_audio_tracks = select_tracks_non_interactive(audio_tracks, config)
+                # Find default audio track from config
+                if config:
+                    default_audio_track = config.find_default_audio_track(selected_audio_tracks)
+                    if default_audio_track:
+                        default_audio_index = next(
+                            (
+                                i
+                                for i, track in enumerate(selected_audio_tracks)
+                                if track.mkvmerge_id == default_audio_track.mkvmerge_id
+                            ),
+                            None,
+                        )
+            else:
+                selected_audio_tracks, default_audio_index = select_tracks_to_keep(
+                    audio_tracks, config
+                )
+                if default_audio_index is not None and default_audio_index < len(audio_tracks):
+                    # Find the default track in selected tracks by matching mkvmerge_id
+                    original_default_track = audio_tracks[default_audio_index]
+                    default_audio_track = next(
+                        (
+                            track
+                            for track in selected_audio_tracks
+                            if track.mkvmerge_id == original_default_track.mkvmerge_id
+                        ),
+                        None,
+                    )
+
+            if not selected_audio_tracks:
+                print("No audio tracks selected. File will be skipped.")
                 return FileAnalysisResult(
                     status=TrackSelectionResult.SKIPPED_NO_SELECTION,
                     all_tracks=audio_tracks,
                     selected_tracks=None,
+                    all_subtitle_tracks=subtitle_tracks,
+                    selected_subtitle_tracks=None,
                 )
-            selected_tracks = select_tracks_non_interactive(audio_tracks, config)
-        else:
-            selected_tracks = select_tracks_to_keep(audio_tracks, config)
 
-        if not selected_tracks:
-            print("No tracks selected. File will be skipped.")
-            return FileAnalysisResult(
-                status=TrackSelectionResult.SKIPPED_NO_SELECTION,
-                all_tracks=audio_tracks,
-                selected_tracks=None,
-            )
+        # Subtitle track selection (interactive or non-interactive)
+        selected_subtitle_tracks: list[SubtitleTrack] = []
+        default_subtitle_track: SubtitleTrack | None = None
+        default_subtitle_index: int | None = None
+
+        if subtitle_tracks:
+            if non_interactive:
+                if config is None or not config.has_rules():
+                    print(f"{YELLOW}Non-interactive mode requires configuration rules.{RESET}")
+                    print("No subtitle tracks will be removed. All subtitle tracks will be kept.")
+                    selected_subtitle_tracks = subtitle_tracks
+                else:
+                    selected_subtitle_tracks = select_subtitle_tracks_non_interactive(
+                        subtitle_tracks, config
+                    )
+                # Find default subtitle track from config
+                if config:
+                    default_subtitle_track = config.find_default_subtitle_track(
+                        selected_subtitle_tracks
+                    )
+                    if default_subtitle_track:
+                        default_subtitle_index = next(
+                            (
+                                i
+                                for i, track in enumerate(selected_subtitle_tracks)
+                                if track.mkvmerge_id == default_subtitle_track.mkvmerge_id
+                            ),
+                            None,
+                        )
+            else:
+                selected_subtitle_tracks, default_subtitle_index = select_subtitle_tracks_to_keep(
+                    subtitle_tracks, config
+                )
+                if default_subtitle_index is not None and default_subtitle_index < len(
+                    subtitle_tracks
+                ):
+                    # Find the default track in selected tracks by matching mkvmerge_id
+                    original_default_track = subtitle_tracks[default_subtitle_index]
+                    default_subtitle_track = next(
+                        (
+                            track
+                            for track in selected_subtitle_tracks
+                            if track.mkvmerge_id == original_default_track.mkvmerge_id
+                        ),
+                        None,
+                    )
 
         # Check if all tracks are selected (no filtering needed)
-        if len(selected_tracks) == len(audio_tracks):
+        audio_all_selected = not audio_tracks or len(selected_audio_tracks) == len(audio_tracks)
+        subtitle_all_selected = not subtitle_tracks or len(selected_subtitle_tracks) == len(
+            subtitle_tracks
+        )
+
+        if audio_all_selected and subtitle_all_selected:
             print("All tracks selected. No filtering needed for this file.")
             return FileAnalysisResult(
                 status=TrackSelectionResult.SKIPPED_ALL_SELECTED,
                 all_tracks=audio_tracks,
-                selected_tracks=selected_tracks,
+                selected_tracks=selected_audio_tracks,
+                all_subtitle_tracks=subtitle_tracks,
+                selected_subtitle_tracks=selected_subtitle_tracks,
+                default_audio_track=default_audio_track,
+                default_subtitle_track=default_subtitle_track,
             )
 
-        print(
-            f"Selection complete: {len(selected_tracks)} track(s) to keep, {len(audio_tracks) - len(selected_tracks)} to remove"
-        )
+        audio_summary = ""
+        if audio_tracks:
+            audio_summary = f"{len(selected_audio_tracks)} audio track(s) to keep, {len(audio_tracks) - len(selected_audio_tracks)} to remove"
+        subtitle_summary = ""
+        if subtitle_tracks:
+            subtitle_summary = f"{len(selected_subtitle_tracks)} subtitle track(s) to keep, {len(subtitle_tracks) - len(selected_subtitle_tracks)} to remove"
+
+        summary_parts = [p for p in [audio_summary, subtitle_summary] if p]
+        print(f"Selection complete: {'; '.join(summary_parts)}")
+
         return FileAnalysisResult(
             status=TrackSelectionResult.SUCCESS,
             all_tracks=audio_tracks,
-            selected_tracks=selected_tracks,
+            selected_tracks=selected_audio_tracks,
+            all_subtitle_tracks=subtitle_tracks,
+            selected_subtitle_tracks=selected_subtitle_tracks,
+            default_audio_track=default_audio_track,
+            default_subtitle_track=default_subtitle_track,
         )
 
+    except UserCancelledError:
+        raise
     except Exception as e:
         error_msg = f"Error analyzing {filename}: {e}"
         print(error_msg, file=sys.stderr)
@@ -128,6 +256,9 @@ def process_file_with_selection(
     output_path: Path | None,
     replace_original_file: bool,
     create_backup: bool,
+    selected_subtitle_tracks: list[SubtitleTrack] | None = None,
+    default_audio_track: AudioTrack | None = None,
+    default_subtitle_track: SubtitleTrack | None = None,
 ) -> bool:
     """
     Process a file with predetermined track selection.
@@ -137,8 +268,21 @@ def process_file_with_selection(
     print(f"\nProcessing: {filename}")
 
     try:
+        # Determine default track IDs
+        default_audio_track_id = default_audio_track.mkvmerge_id if default_audio_track else None
+        default_subtitle_track_id = (
+            default_subtitle_track.mkvmerge_id if default_subtitle_track else None
+        )
+
         # Process the file
-        filtered_file = remove_unwanted_tracks(filename, selected_tracks, output_path)
+        filtered_file = remove_unwanted_tracks(
+            filename,
+            selected_tracks,
+            output_path,
+            selected_subtitle_tracks,
+            default_audio_track_id,
+            default_subtitle_track_id,
+        )
 
         # Replace original if requested
         if replace_original_file:
@@ -284,10 +428,22 @@ def main() -> int:
         for i, filename in enumerate(valid_files):
             print(f"\n--- File {i + 1}/{len(valid_files)}: {filename.name} ---")
 
-            result = analyze_and_select_tracks(filename, config, args.non_interactive)
+            try:
+                result = analyze_and_select_tracks(filename, config, args.non_interactive)
+            except UserCancelledError:
+                print("Operation cancelled by user.")
+                return 0
 
             if result.should_process:
-                file_selections.append((filename, result.selected_tracks))
+                file_selections.append(
+                    (
+                        filename,
+                        result.selected_tracks or [],
+                        result.selected_subtitle_tracks,
+                        result.default_audio_track,
+                        result.default_subtitle_track,
+                    )
+                )
                 print(f"✓ Selection recorded for {filename.name}")
             elif result.status == TrackSelectionResult.FAILED:
                 analysis_failed.append(filename)
@@ -309,9 +465,20 @@ def main() -> int:
         success_count = 0
         processing_failed = []
 
-        for i, (filename, selected_tracks) in enumerate(file_selections):
+        for i, (
+            filename,
+            selected_tracks,
+            selected_subtitle_tracks,
+            default_audio_track,
+            default_subtitle_track,
+        ) in enumerate(file_selections):
             print(f"\n--- Processing {i + 1}/{len(file_selections)}: {filename.name} ---")
-            print(f"Keeping {len(selected_tracks)} track(s)...")
+            track_summary_parts = []
+            if selected_tracks:
+                track_summary_parts.append(f"{len(selected_tracks)} audio track(s)")
+            if selected_subtitle_tracks:
+                track_summary_parts.append(f"{len(selected_subtitle_tracks)} subtitle track(s)")
+            print(f"Keeping {', '.join(track_summary_parts)}...")
 
             success = process_file_with_selection(
                 filename,
@@ -319,6 +486,9 @@ def main() -> int:
                 args.output if len(valid_files) == 1 else None,
                 True,  # Always replace original file (new default behavior)
                 not args.no_backup,
+                selected_subtitle_tracks,
+                default_audio_track,
+                default_subtitle_track,
             )
 
             if success:

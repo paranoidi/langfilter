@@ -5,21 +5,45 @@
 #   - ~/.config/langfilter/config.ini (user config directory)
 #   - ~/.langfilter.ini (user home directory)
 
-[DEFAULT]
-# Remove tracks with specific language codes (comma-separated)
+[audio]
+# Remove audio tracks with specific language codes (comma-separated)
 # Common language codes: rus, ukr, eng, jpn, fra, deu, spa, etc.
 remove=rus,ukr
 
-# Keep only tracks with specific language codes (comma-separated)
+# Keep only audio tracks with specific language codes (comma-separated)
 # Note: If both 'keep' and 'remove' are specified, both rules apply
 # keep=eng,unknown
 
+# Set default audio track by language code (first matching track becomes default)
+# default_audio=eng
+
+# Set default subtitle track by language code (first matching track becomes default)
+# default_subtitle=eng
+
 # Examples:
-# Remove all Russian and Ukrainian tracks:
+# Remove all Russian and Ukrainian audio tracks:
 # remove=rus,ukr
 
-# Keep only English and unknown language tracks:
+# Keep only English and unknown language audio tracks:
 # keep=eng,unknown
 
 # Remove Russian but keep everything else:
 # remove=rus
+
+# Set first English audio track as default:
+# default_audio=eng
+
+[subtitles]
+# Subtitle track filtering (separate from audio tracks)
+# Remove subtitle tracks with specific language codes (comma-separated)
+# remove=rus,ukr
+
+# Keep only subtitle tracks with specific language codes (comma-separated)
+# keep=eng,unknown
+
+# Examples:
+# Remove all Russian and Ukrainian subtitle tracks:
+# remove=rus,ukr
+
+# Keep only English and unknown language subtitle tracks:
+# keep=eng,unknown

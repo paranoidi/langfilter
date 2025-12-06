@@ -1,19 +1,20 @@
 # LangFilter
 
-Command-line tool to remove unwanted audio language tracks from MKV files.
+Command-line tool to remove unwanted audio and subtitle language tracks from MKV files.
 
 ## Overview
 
-LangFilter helps you clean up MKV video files by removing audio tracks in unwanted languages. It provides both interactive and automated modes, with configuration file support for batch processing.
+LangFilter helps you clean up MKV video files by removing audio and subtitle tracks in unwanted languages. It provides both interactive and automated modes, with configuration file support for batch processing.
 
 ## Features
 
-- **Interactive mode**: Choose which audio tracks to keep from a visual menu
+- **Interactive mode**: Choose which audio and subtitle tracks to keep from a visual menu
 - **Non-interactive mode**: Apply predefined rules from configuration files
 - **Batch processing**: Process multiple MKV files at once
-- **Flexible configuration**: Remove specific languages or keep only desired ones
+- **Flexible configuration**: Remove specific languages or keep only desired ones for both audio and subtitles
+- **Default track selection**: Set default audio and subtitle tracks by language
 - **Safe operations**: Replaces original files with filtered versions, creates backups with `_original` prefix
-- **Track analysis**: Uses `mkvinfo` to analyze audio tracks before processing
+- **Track analysis**: Uses `mkvinfo` to analyze audio and subtitle tracks before processing
 
 ## Installation
 
@@ -86,11 +87,25 @@ Create a configuration file to automate track selection. LangFilter looks for co
 
 ### Example Configuration
 ```ini
-[DEFAULT]
-# Remove Russian and Ukrainian tracks
+[audio]
+# Remove audio tracks with specific language codes (comma-separated)
 remove=rus,ukr
 
-# Or keep only English and unknown tracks
+# Or keep only audio tracks with specific language codes
+# keep=eng,unknown
+
+# Set default audio track by language code (first matching track becomes default)
+# default_audio=eng
+
+# Set default subtitle track by language code (first matching track becomes default)
+# default_subtitle=eng
+
+[subtitles]
+# Subtitle track filtering (separate from audio tracks)
+# Remove subtitle tracks with specific language codes (comma-separated)
+remove=rus,ukr
+
+# Or keep only subtitle tracks with specific language codes
 # keep=eng,unknown
 ```
 
