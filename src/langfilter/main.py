@@ -432,7 +432,7 @@ def main() -> int:
                 result = analyze_and_select_tracks(filename, config, args.non_interactive)
             except UserCancelledError:
                 print("Operation cancelled by user.")
-                return 0
+                return 1
 
             if result.should_process:
                 file_selections.append(
